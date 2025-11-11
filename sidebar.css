@@ -1,5 +1,5 @@
-/* sidebar.css - scroll for sidebar room list */
+/* Прокрутка списка комнат по ТЗ */
 .sidebar-list {
-    height: 76vh;
-    overflow-y: scroll;
+  height: 76vh;
+  overflow-y: scroll;
 }

@@ -1,22 +1,28 @@
-// login.js - simple login/local token handling
-document.addEventListener('alpine:init', () => {
-  // nothing here; chatApp created in chat.js
-});
+// ЛОГИН
+async function login() {
+  this.error = '';
+  try {
+    const res = await fetch('https://matrix-client.matrix.org/_matrix/client/r0/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'm.login.password',
+        user: this.username,
+        password: this.password
+      })
+    });
 
-// Also try to inject a login form into placeholder if not already present
-window.addEventListener('DOMContentLoaded', () => {
-  const placeholder = document.getElementById('login-placeholder');
-  if (!placeholder) return;
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Login failed');
+    }
 
-  placeholder.innerHTML = `
-    <div id="login-container" class="mb-6" x-show="!accessToken" x-cloak>
-      <h2 class="text-xl font-semibold mb-2">Login / Provide Access Token</h2>
-      <p class="text-xs text-gray-500 mb-2">You can paste a Matrix access token here or enter username/password for demo (no server auth implemented).</p>
-      <input x-model="accessToken" placeholder="Access Token (paste here)" class="border p-2 w-full mb-2 rounded" />
-      <div class="flex gap-2">
-        <button @click="$dispatch('token-saved')" class="bg-blue-500 text-white px-3 py-1 rounded">Use Token</button>
-        <button @click="loginDemo()" class="bg-gray-200 px-3 py-1 rounded">Use Demo</button>
-      </div>
-    </div>
-  `;
-});
+    const data = await res.json();
+    this.accessToken = data.access_token;
+    this.userId = data.user_id;
+    await this.fetchRoomsWithNames();
+  } catch (e) {
+    console.error(e);
+    this.error = 'Login error';
+  }
+}
