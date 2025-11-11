@@ -2,88 +2,138 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Matrix Chat Demo</title>
+  <title>Matrix Chat - Demo</title>
 
+  <!-- Tailwind & Alpine (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
-
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-  <script type="module">
-    import './chat.js';
-    import './login.js';
-    import './sidebar.js';
-  </script>
+  <!-- Project styles -->
+  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="sidebar.css">
 
+  <!-- App scripts -->
+  <script defer src="./login.js"></script>
+  <script defer src="./sidebar.js"></script>
+  <script defer src="./chat.js"></script>
 </head>
 <body class="index-container bg-gray-100 flex justify-center">
+  <!-- Root app -->
   <div x-data="chatApp()" x-init="init()" class="flex w-full max-w-full h-full">
-    <div class="sidebar p-4 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="min-width:250px;">
-      <h2 class="text-xl font-semibold mb-3">Rooms</h2>
-      <ul class="room-list">
-        <template x-for="r in rooms" :key="r.roomId">
-          <li @click="switchRoom(r.roomId)" 
-              :class="{'active': r.roomId === roomId}" 
-              class="cursor-pointer p-2 rounded hover:bg-indigo-100">
-            <span x-text="r.name"></span>
-          </li>
-        </template>
-      </ul>
-
-      <div class="mt-4">
-        <input x-model="newRoomName" placeholder="New room name" class="border p-2 w-full mb-2 rounded">
-        <button @click="createRoom()" class="bg-indigo-500 text-white p-2 w-full rounded hover:bg-indigo-600">Create</button>
-        <p x-show="newRoomId" class="text-xs mt-2 text-gray-500">Created: <span x-text="newRoomId"></span></p>
-      </div>
+    <!-- Left side: sidebar and users (will be loaded from separate HTML fragments by sidebar.js) -->
+    <div id="left-column" class="sidebar p-4 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="min-width:250px;">
+      <!-- placeholder — sidebar.js will inject sidebar.html here on load -->
+      <div id="sidebar-placeholder"></div>
     </div>
 
+    <!-- Right side: chat area -->
     <div class="chat-area flex-1 p-6">
-      <div id="login-placeholder">
-        <div id="login-container" x-show="!accessToken" x-cloak>
-          <h2 class="text-xl font-semibold mb-2">Login / Token</h2>
-          <input x-model="accessToken" placeholder="Access Token" class="border p-2 w-full mb-2 rounded">
-          <div class="flex gap-2">
-            <button @click="loginDemo()" class="bg-blue-500 text-white px-3 py-1 rounded">Demo</button>
-            <button @click="$dispatch('token-saved')" class="bg-gray-300 px-3 py-1 rounded">Use Token</button>
-          </div>
-        </div>
-      </div>
+      <!-- Login form -->
+      <div id="login-placeholder"></div>
 
+      <!-- If logged in, show chat -->
       <template x-if="accessToken">
-        <div class="chat-container bg-white rounded-lg shadow-lg flex flex-col h-full">
+        <div class="chat-container bg-white rounded-lg shadow-lg flex w-full h-full flex-col">
+          <!-- header -->
           <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-bold">Matrix Chat</h1>
-            <button @click="logout()" class="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+            <div>
+              <h1 class="text-2xl font-bold">Matrix Chat (demo)</h1>
+              <p class="text-sm text-gray-500" x-text="userId ? userId : 'Not logged in'"></p>
+            </div>
+            <div>
+              <button @click="logout()" class="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+            </div>
           </div>
 
-          <div class="flex-1 border rounded p-4 overflow-y-auto" id="messages-area">
-            <template x-if="!roomId">
-              <p class="text-gray-500">Select a room</p>
-            </template>
+          <div class="flex gap-4 h-full">
+            <!-- Rooms column (in left column, but we also show a compact rooms list here) -->
+            <div class="w-64 border-r pr-4">
+              <h2 class="text-lg font-semibold mb-2">Rooms</h2>
+              <ul class="room-list sidebar-list" id="rooms-list">
+                <template x-for="r in rooms" :key="r.roomId">
+                  <li @click="switchRoom(r.roomId)"
+                      :class="{'active': r.roomId === roomId}"
+                      class="cursor-pointer rounded-lg p-2"
+                      x-text="r.name || r.roomId"></li>
+                </template>
+              </ul>
 
-            <template x-if="roomId">
-              <div>
-                <h3 class="font-semibold text-gray-700 mb-2">
-                  Room: <span x-text="getRoomName(roomId)"></span>
-                </h3>
-                <template x-for="m in messages" :key="m.event_id">
-                  <div class="mb-2">
-                    <div class="text-xs text-gray-500" x-text="m.sender"></div>
-                    <div class="bg-gray-100 p-2 rounded" x-text="m.body"></div>
+              <div class="mt-4">
+                <input x-model="newRoomName" placeholder="New room name" class="border p-2 w-full mb-2 rounded">
+                <button @click="createRoom()" class="bg-indigo-500 text-white p-2 w-full rounded hover:bg-indigo-600 transition">Create Room</button>
+                <p x-show="newRoomId" class="text-sm text-gray-600 mt-1">Room ID: <span x-text="newRoomId"></span></p>
+              </div>
+            </div>
+
+            <!-- Messages and input -->
+            <div class="flex-1 flex flex-col">
+              <div class="flex-1 border rounded p-4 overflow-y-auto" id="messages-area">
+                <template x-if="!roomId">
+                  <p class="text-gray-500">Select a room to view messages</p>
+                </template>
+
+                <template x-if="roomId">
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-700 mb-2">Room: <span x-text="getRoomName(roomId)"></span></h3>
+                    <div>
+                      <template x-for="m in messages" :key="m.event_id">
+                        <div class="mb-2">
+                          <div class="text-xs text-gray-500" x-text="m.sender"></div>
+                          <div class="bg-gray-100 p-2 rounded" x-text="m.body"></div>
+                        </div>
+                      </template>
+                    </div>
                   </div>
                 </template>
               </div>
-            </template>
-          </div>
 
-          <div class="message-input mt-4">
-            <textarea x-model="newMessage" placeholder="Message..." class="border w-full p-2 rounded" rows="2"></textarea>
-            <div class="flex justify-end mt-2">
-              <button @click="sendMessage()" class="bg-green-500 text-white px-4 py-2 rounded">Send</button>
+              <div class="message-input mt-4">
+                <textarea x-model="newMessage" placeholder="Type message..." class="w-full border rounded p-2" rows="3"></textarea>
+                <div class="flex justify-end mt-2">
+                  <button @click="sendMessage()" class="bg-green-500 text-white px-4 py-2 rounded">Send</button>
+                </div>
+              </div>
             </div>
-          </div>
+
+            <!-- Right-most: users & invites (user component will be injected into left column; keep compact here) -->
+            <div class="w-80">
+              <h2 class="text-lg font-semibold mb-2">Users</h2>
+              <div class="p-3 bg-gray-50 rounded">
+                <template x-if="roomId">
+                  <div>
+                    <h4 class="text-sm font-medium mb-2">Room members</h4>
+                    <template x-if="roomMembers.length===0">
+                      <p class="text-xs text-gray-500">Loading members...</p>
+                    </template>
+                    <ul class="text-xs space-y-1">
+                      <template x-for="m in roomMembers" :key="m.userId">
+                        <li class="flex items-center space-x-2">
+                          <span class="font-medium" x-text="m.displayName"></span>
+                          <span class="text-gray-500" x-text="'(' + m.userId.split(':')[0].substring(1) + ')'"></span>
+                        </li>
+                      </template>
+                    </ul>
+                  </div>
+                </template>
+
+                <div class="mt-4 space-y-2">
+                  <input x-model="inviteUser" placeholder="Invite user (e.g., @user:matrix.org)" class="border p-2 w-full mb-1 rounded">
+                  <button @click="inviteUserToRoom()" class="bg-purple-500 text-white p-2 w-full rounded hover:bg-purple-600 transition">Invite</button>
+
+                  <input x-model="joinRoomId" placeholder="Room ID to join (e.g., !roomId:matrix.org)" class="border p-2 w-full mb-1 rounded">
+                  <button @click="joinRoom()" class="bg-yellow-500 text-white p-2 w-full rounded hover:bg-yellow-600 transition">Join Room</button>
+                </div>
+              </div>
+            </div>
+
+          </div> <!-- end main flex -->
         </div>
       </template>
     </div>
   </div>
+
+  <!-- Sidebar & user HTML fragments (for convenience, user may also keep them separate files) -->
+  <!-- But sidebar.js will try to fetch 'sidebar.html' and 'user.html' into placeholders if present. -->
 </body>
 </html>

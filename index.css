@@ -1,22 +1,27 @@
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+/* index.css - main layout styles moved from index.html as requested */
+html {
+    height: 100%;
 }
 .index-container {
-  height: 100vh;
+    height: 100vh;
 }
 .sidebar {
-  min-width: 250px;
+    min-width: 250px;
 }
 .chat-area {
-  flex-grow: 1;
+    flex-grow: 1;
 }
-.room-list {
-  list-style: none;
-  padding: 0;
+.message-input {
+    min-height: 80px;
+}
+.room-list li {
+    padding: 8px;
+    transition: background-color 0.2s;
+}
+.room-list li:hover {
+    background-color: #e0e7ff;
 }
 .room-list li.active {
-  background-color: #bfdbfe;
-  font-weight: 500;
+    background-color: #bfdbfe;
+    font-weight: 500;
 }

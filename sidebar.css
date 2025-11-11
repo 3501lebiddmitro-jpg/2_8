@@ -1,4 +1,5 @@
+/* sidebar.css - scroll for sidebar room list */
 .sidebar-list {
-  height: 76vh;
-  overflow-y: scroll;
+    height: 76vh;
+    overflow-y: scroll;
 }
