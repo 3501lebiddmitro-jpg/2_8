@@ -1,9 +1,8 @@
-// chat.js
-// Основной файл приложения. Экспортирует chatApp() — функцию, используемую Alpine.js.
-
-function chatApp() {
-  return {
-    homeserver: 'https://matrix.org',
+// Регистрируем компонент через Alpine.data на событие инициализации Alpine.
+// Так Alpine гарантированно "знает" про chatApp до разборки x-data в DOM.
+document.addEventListener('alpine:init', () => {
+  Alpine.data('chatApp', () => ({
+    // ===== STATE =====
     username: '',
     password: '',
     accessToken: '',
@@ -19,228 +18,216 @@ function chatApp() {
     error: '',
     lastSyncToken: '',
     roomMembers: [],
-    showLogin: true,
+    partials: { sidebar: '', user: '' },
 
-    // Инициализация - попытаемся подгрузить доступные комнаты (если токен есть)
+    // ===== LIFECYCLE =====
     async init() {
-      if (this.accessToken) {
-        await this.fetchRoomsWithNames();
+      await this.loadPartials();
+    },
+
+    async loadPartials() {
+      try {
+        const [sb, us] = await Promise.all([
+          fetch('./sidebar.html').then(r => r.ok ? r.text() : ''),
+          fetch('./user.html').then(r => r.ok ? r.text() : '')
+        ]);
+
+        // Фолбэки, если файлов нет
+        this.partials.sidebar = sb || `
+          <div class="room-list space-y-1 px-4">
+            <ul class="sidebar-list">
+              <template x-for="room in rooms" :key="room.roomId">
+                <li
+                  @click="switchRoom(room.roomId)"
+                  :class="{ 'active': room.roomId === roomId }"
+                  x-text="room.name || room.roomId"
+                  class="cursor-pointer rounded-lg"
+                ></li>
+              </template>
+            </ul>
+            <div class="mt-4">
+              <input x-model="newRoomName" placeholder="New room name" class="border p-2 w-full mb-2 rounded">
+              <button @click="createRoom()" class="bg-indigo-500 text-white p-2 w-full rounded hover:bg-indigo-600 transition">Create Room</button>
+              <p x-show="newRoomId" class="text-sm text-gray-600 mt-1">Room ID: <span x-text="newRoomId"></span></p>
+            </div>
+          </div>`;
+
+        this.partials.user = us || `
+          <template x-if="accessToken && roomId">
+            <div class="mt-6 p-4 bg-gray-100 rounded-lg">
+              <h3 class="text-sm font-semibold text-gray-700 mb-2">Учасники кімнати</h3>
+              <template x-if="roomMembers.length === 0">
+                <p class="text-xs text-gray-500">Завантаження...</p>
+              </template>
+              <ul class="text-xs space-y-1">
+                <template x-for="member in roomMembers" :key="member.userId">
+                  <li class="flex items-center space-x-2">
+                    <span class="font-medium" x-text="member.displayName"></span>
+                    <span class="text-gray-500" x-text="'(' + member.userId.split(':')[0].substring(1) + ')'"></span>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
+          <div class="space-y-2 mt-4">
+            <div>
+              <input x-model="inviteUser" placeholder="Invite user (e.g., @user:matrix.org)" class="border p-2 w-full mb-1 rounded">
+              <button @click="inviteUserToRoom()" class="bg-purple-500 text-white p-2 w-full rounded hover:bg-purple-600 transition">Invite</button>
+            </div>
+            <div>
+              <input x-model="joinRoomId" placeholder="Room ID to join (e.g., !roomId:matrix.org)" class="border p-2 w-full mb-1 rounded">
+              <button @click="joinRoom()" class="bg-yellow-500 text-white p-2 w-full rounded hover:bg-yellow-600 transition">Join Room</button>
+            </div>
+          </div>`;
+      } catch (e) {
+        console.error('partials load error', e);
       }
     },
 
-    // Login: если введён токен (в password), используем как access token.
+    // ===== METHODS =====
     async login() {
       this.error = '';
-      if (!this.username && !this.password) {
-        this.error = 'Введите логин/пароль или access token';
-        return;
-      }
       try {
-        // Если password выглядит как токен (просто примем), то используем напрямую.
-        if (this.password && this.password.startsWith('eyJ') ) {
-          // может быть JWT-like — используем как токен
-          this.accessToken = this.password;
-          this.userId = this.username || '';
-          await this.fetchRoomsWithNames();
-          this.showLogin = false;
-          return;
+        const res = await fetch('https://matrix-client.matrix.org/_matrix/client/r0/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'm.login.password',
+            user: this.username,
+            password: this.password
+          })
+        });
+
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || 'Login failed');
         }
 
-        // Иначе пробуем войти через password flow
-        const res = await loginWithPassword(this.homeserver, this.username, this.password);
-        this.accessToken = res.access_token;
-        this.userId = res.user_id || this.username;
-        this.showLogin = false;
+        const data = await res.json();
+        this.accessToken = data.access_token;
+        this.userId = data.user_id;
         await this.fetchRoomsWithNames();
       } catch (e) {
-        console.error('Login error', e);
-        this.error = 'Login failed: ' + (e.message || e);
+        console.error(e);
+        this.error = 'Login error';
       }
-    },
-
-    async loginAsGuest() {
-      // Минимальная симуляция гостя: не используем access token, но пометим, что залогинены
-      this.accessToken = '';
-      this.userId = 'guest';
-      this.showLogin = false;
-      await this.fetchRoomsWithNames();
-    },
-
-    logout() {
-      this.accessToken = '';
-      this.userId = '';
-      this.rooms = [];
-      this.roomId = '';
-      this.messages = [];
-      this.roomMembers = [];
-      this.showLogin = true;
     },
 
     async createRoom() {
-      if (!this.accessToken) { this.error = 'You must be logged in to create a room.'; return; }
-      const name = this.newRoomName || 'New room';
+      if (!this.accessToken || !this.newRoomName) return;
       try {
-        const url = this.homeserver.replace(/\/$/, '') + '/_matrix/client/r0/createRoom';
-        const res = await fetch(url, {
+        const res = await fetch('https://matrix-client.matrix.org/_matrix/client/r0/createRoom', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name })
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: this.newRoomName, visibility: 'private' })
         });
         const data = await res.json();
         this.newRoomId = data.room_id || '';
-        // Обновим список комнат
+        this.newRoomName = '';
         await this.fetchRoomsWithNames();
       } catch (e) {
-        console.error('createRoom', e);
-        this.error = 'Create room failed';
+        console.error('createRoom error', e);
       }
     },
 
     async fetchRoomsWithNames() {
-      if (!this.accessToken) {
-        // без токена — список пуст
-        this.rooms = [];
-        return;
-      }
-      const roomIds = await fetchRooms(this.accessToken, this.homeserver);
-      const arr = [];
-      for (const rid of roomIds) {
-        const name = await fetchRoomName(this.accessToken, this.homeserver, rid);
-        arr.push({ roomId: rid, name });
-      }
-      this.rooms = arr;
-    },
-
-    async joinRoom() {
-      if (!this.accessToken) {
-        this.error = 'Login required to join rooms';
-        return;
-      }
-      if (!this.joinRoomId) {
-        this.error = 'Provide room ID';
-        return;
-      }
+      if (!this.accessToken) return;
       try {
-        const url = `${this.homeserver.replace(/\/$/, '')}/_matrix/client/r0/rooms/${encodeURIComponent(this.joinRoomId)}/join`;
-        const res = await fetch(url, {
-          method: 'POST',
+        const res = await fetch('https://matrix-client.matrix.org/_matrix/client/r0/joined_rooms', {
           headers: { 'Authorization': `Bearer ${this.accessToken}` }
         });
-        if (!res.ok) throw new Error('Join failed: ' + res.status);
-        await this.fetchRoomsWithNames();
-        this.joinRoomId = '';
+        const data = await res.json();
+        const ids = data.joined_rooms || [];
+
+        const enriched = [];
+        for (const id of ids) {
+          let name = '';
+          try {
+            const rn = await fetch(
+              `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(id)}/state/m.room.name/`,
+              { headers: { 'Authorization': `Bearer ${this.accessToken}` } }
+            );
+            if (rn.ok) {
+              const n = await rn.json();
+              name = n.name || '';
+            }
+          } catch (_) {}
+          enriched.push({ roomId: id, name });
+        }
+        this.rooms = enriched;
+
+        if (!this.roomId && this.rooms.length) {
+          this.switchRoom(this.rooms[0].roomId);
+        }
       } catch (e) {
-        console.error('joinRoom', e);
-        this.error = 'Join room failed';
+        console.error('fetchRoomsWithNames error', e);
       }
+    },
+
+    switchRoom(roomId) {
+      if (roomId) this.roomId = roomId;
+      this.messages = [];
+      this.lastSyncToken = '';
+      this.fetchMessages();
+      this.fetchRoomMembers();
     },
 
     async inviteUserToRoom() {
-      if (!this.accessToken || !this.roomId) { this.error = 'You must be in a room to invite users'; return; }
-      if (!this.inviteUser) { this.error = 'Provide user id to invite'; return; }
+      if (!this.accessToken || !this.roomId || !this.inviteUser) return;
       try {
-        const url = `${this.homeserver.replace(/\/$/, '')}/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/invite`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: this.inviteUser })
-        });
-        if (!res.ok) throw new Error('Invite failed');
+        const res = await fetch(
+          `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/invite`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ user_id: this.inviteUser })
+          }
+        );
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || 'Invite failed');
+        }
         this.inviteUser = '';
-        // Обновляем участников
-        await this.fetchRoomMembers();
       } catch (e) {
-        console.error('inviteUserToRoom', e);
-        this.error = 'Invite failed';
+        console.error('inviteUserToRoom error', e);
       }
     },
 
-    getRoomName(roomId) {
-      const r = this.rooms.find(r => r.roomId === roomId);
-      return r ? r.name : roomId;
-    },
-
-    async switchRoom(roomId) {
-      if (!roomId) return;
-      this.roomId = roomId;
-      this.messages = [];
-      this.lastSyncToken = '';
-      await this.fetchMessages();
-      await this.fetchRoomMembers(); // ← Загружаем участников, как в задании
-    },
-
-    async sendMessage() {
-      if (!this.newMessage || !this.roomId) return;
-      if (!this.accessToken) {
-        // просто локально добавим
-        this.messages.push({ sender: this.userId || 'me', body: this.newMessage, event_id: Date.now().toString() });
-        this.newMessage = '';
-        return;
-      }
+    async joinRoom() {
+      if (!this.accessToken || !this.joinRoomId) return;
       try {
-        const txn = 'm' + Date.now();
-        const url = `${this.homeserver.replace(/\/$/, '')}/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/send/m.room.message/${txn}`;
-        const body = { msgtype: "m.text", body: this.newMessage };
-        const res = await fetch(url, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        if (!res.ok) throw new Error('send failed: ' + res.status);
-        const data = await res.json();
-        // Добавим локально для отображения
-        this.messages.push({ sender: this.userId || 'me', body: this.newMessage, event_id: data.event_id || txn });
-        this.newMessage = '';
-        // автоскрол
-        this.$nextTick(() => {
-          try { this.$refs.messagesBox.scrollTop = this.$refs.messagesBox.scrollHeight; } catch(e){}
-        });
+        const res = await fetch(
+          `https://matrix-client.matrix.org/_matrix/client/r0/join/${encodeURIComponent(this.joinRoomId)}`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${this.accessToken}` }
+          }
+        );
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || 'Join failed');
+        }
+        this.joinRoomId = '';
+        await this.fetchRoomsWithNames();
       } catch (e) {
-        console.error('sendMessage', e);
-        this.error = 'Send failed';
-      }
-    },
-
-    async fetchMessages() {
-      // Простейшая реализация: используем /messages или /sync. Для демо мы попытаемся сделать /sync с limit маленьким.
-      if (!this.accessToken || !this.roomId) return;
-      try {
-        const url = `${this.homeserver.replace(/\/$/, '')}/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/messages?dir=b&limit=20`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${this.accessToken}` } });
-        if (!res.ok) { console.warn('fetch messages status', res.status); return; }
-        const data = await res.json();
-        // data.chunk — массив событий
-        const events = data.chunk || [];
-        this.messages = events.map(ev => {
-          let body = '';
-          if (ev.content && ev.content.body) body = ev.content.body;
-          else body = JSON.stringify(ev.content || {});
-          return { sender: ev.sender || '', body, event_id: ev.event_id };
-        }).reverse();
-        // scroll to bottom
-        this.$nextTick(() => {
-          try { this.$refs.messagesBox.scrollTop = this.$refs.messagesBox.scrollHeight; } catch(e){}
-        });
-      } catch (e) {
-        console.error('fetchMessages', e);
+        console.error('joinRoom error', e);
       }
     },
 
     async fetchRoomMembers() {
-      if (!this.accessToken || !this.roomId) {
-        this.roomMembers = [];
-        return;
-      }
+      if (!this.accessToken || !this.roomId) return;
       try {
         const res = await fetch(
-          `${this.homeserver.replace(/\/$/, '')}/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/joined_members`,
-          {
-            headers: { 'Authorization': `Bearer ${this.accessToken}` }
-          }
+          `https://matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/joined_members`,
+          { headers: { 'Authorization': `Bearer ${this.accessToken}` } }
         );
-        if (!res.ok) throw new Error('members fetch failed: ' + res.status);
         const data = await res.json();
-        // data.joined — object { "@user:matrix.org": { display_name: "...", ... } }
         this.roomMembers = Object.entries(data.joined || {}).map(([userId, info]) => ({
           userId,
           displayName: info.display_name || userId.split(':')[0].substring(1),
@@ -248,13 +235,60 @@ function chatApp() {
         }));
       } catch (e) {
         console.error('Error fetching room members:', e);
-        this.roomMembers = [];
+      }
+    },
+
+    getRoomName(id) {
+      if (!id) return '';
+      const r = this.rooms.find(r => r.roomId === id);
+      return r?.name || id;
+    },
+
+    async fetchMessages() {
+      if (!this.accessToken || !this.roomId) return;
+      try {
+        const url = `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/messages?dir=b&limit=30`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${this.accessToken}` } });
+        const data = await res.json();
+
+        const msgs = (data.chunk || [])
+          .filter(e => e.type === 'm.room.message' && e.content?.body)
+          .map(e => ({
+            event_id: e.event_id,
+            sender: e.sender,
+            body: e.content.body
+          }))
+          .reverse();
+
+        this.messages = msgs;
+        this.lastSyncToken = data.end || '';
+      } catch (e) {
+        console.error('fetchMessages error', e);
+      }
+    },
+
+    async sendMessage() {
+      if (!this.accessToken || !this.roomId || !this.newMessage.trim()) return;
+      try {
+        const txnId = Date.now();
+        const url = `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/send/m.room.message/${txnId}`;
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ msgtype: 'm.text', body: this.newMessage.trim() })
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || 'Send failed');
+        }
+        this.newMessage = '';
+        await this.fetchMessages();
+      } catch (e) {
+        console.error('sendMessage error', e);
       }
     }
-  }
-}
-
-// register init for Alpine when DOM is ready
-document.addEventListener('alpine:init', () => {
-  // nothing to do here because we return the object via x-data="chatApp()"
+  }));
 });
