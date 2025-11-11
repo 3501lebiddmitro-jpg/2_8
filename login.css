@@ -1,7 +1,9 @@
-/* Центровка и каркас формы логина по ТЗ */
+/* login.css */
 #login-container {
-  width: 400px;
-  margin: 0 auto;
-  background: #fff;
-  padding: 20px;
+    width: 400px;
+    margin: 2rem auto; /* margin auto для центрирования */
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.06);
 }

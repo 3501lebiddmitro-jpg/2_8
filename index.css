@@ -1,37 +1,43 @@
-/* Перенесено из инлайна и доработано по ТЗ */
+/* index.css - основной каркас, вынесён из index.html */
 html {
-  height: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+*, *::before, *::after {
+    box-sizing: inherit;
+}
+.index-container{
+    height: 100vh; /* задание в документе */
 }
 
-/* Высота на весь вьюпорт, для корректного флекса по вертикали */
-.index-container {
-  height: 100vh;
-}
-
-/* Сайдбар фиксированной минимальной ширины */
+/* базовая компоновка */
 .sidebar {
-  min-width: 250px;
+    min-width: 250px;
 }
-
-/* Чат занимает всё оставшееся место */
 .chat-area {
-  flex-grow: 1;
+    flex-grow: 1;
 }
-
-/* Поле ввода повыше для удобства */
 .message-input {
-  min-height: 80px;
+    min-height: 80px;
 }
 
-/* Стили списка комнат */
+/* список комнат */
 .room-list li {
-  padding: 8px;
-  transition: background-color 0.2s;
+    padding: 8px;
+    transition: background-color 0.2s;
 }
 .room-list li:hover {
-  background-color: #e0e7ff;
+    background-color: #e0e7ff;
 }
 .room-list li.active {
-  background-color: #bfdbfe;
-  font-weight: 500;
+    background-color: #bfdbfe;
+    font-weight: 500;
+}
+
+/* доступные вспомогательные селекторы */
+.chat-container {
+    /* класс больше не используется в разметке, но оставляем для совместимости */
+    background: #fff;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px rgba(0,0,0,0.06);
 }
