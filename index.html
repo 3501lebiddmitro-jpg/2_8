@@ -13,16 +13,13 @@
   <link rel="stylesheet" href="login.css" />
   <link rel="stylesheet" href="sidebar.css" />
 
-  <!-- App script (единый) -->
+  <!-- Единый скрипт приложения: БЕЗ login.js / sidebar.js / user.js -->
   <script src="./chat.js" defer></script>
 </head>
 
-<!-- Удалён p-4, добавлен index-container, исправлено центрирование -->
 <body class="index-container bg-gray-100 flex justify-center">
-  <!-- Удалены bg-white rounded-lg shadow-lg и max-w-5xl; контейнер на всю ширину -->
   <div x-data="chatApp()" x-init="init()" class="flex w-full">
-
-    <!-- ЛОГИН (показывается, если нет токена) -->
+    <!-- ЛОГИН -->
     <template x-if="!accessToken">
       <div id="login-container" class="mx-auto">
         <h1 class="text-2xl font-semibold mb-4 text-center">Login to Matrix</h1>
@@ -37,23 +34,22 @@
       </div>
     </template>
 
-    <!-- ОСНОВНОЙ ИНТЕРФЕЙС (показывается, если есть токен) -->
+    <!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
     <template x-if="accessToken">
       <div class="flex w-full">
-        <!-- Левый столбец: комнаты и пользователи (два сайдбара) -->
+        <!-- Комнаты -->
         <aside class="sidebar p-4 bg-gray-50 border-r border-gray-200 overflow-y-auto">
           <h2 class="text-xl font-bold mb-4">Rooms</h2>
-          <!-- Вставляем разметку из sidebar.html -->
           <div x-html="partials.sidebar"></div>
         </aside>
 
+        <!-- Пользователи -->
         <aside class="sidebar p-4 bg-gray-50 border-r border-gray-200 overflow-y-auto">
           <h2 class="text-xl font-bold mb-4">Users</h2>
-          <!-- Вставляем разметку из user.html -->
           <div x-html="partials.user"></div>
         </aside>
 
-        <!-- Правая область: чат -->
+        <!-- Чат -->
         <main class="chat-area flex flex-col">
           <header class="p-4 border-b bg-white">
             <div class="flex items-center justify-between">
