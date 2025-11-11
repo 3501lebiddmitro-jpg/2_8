@@ -4,24 +4,26 @@
   <meta charset="UTF-8" />
   <title>Matrix Chat</title>
 
-  <!-- Tailwind & Alpine (Alpine ОБЯЗАТЕЛЬНО раньше chat.js) -->
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/alpinejs" defer></script>
+
+  <!-- Наш app-скрипт ДОЛЖЕН идти раньше Alpine (оба defer, порядок сохранится) -->
+  <script src="./chat.js" defer></script>
+
+  <!-- Alpine CDN: используем стабильный cdn build -->
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
   <!-- Styles -->
   <link rel="stylesheet" href="index.css" />
   <link rel="stylesheet" href="login.css" />
   <link rel="stylesheet" href="sidebar.css" />
-
-  <!-- Единый скрипт приложения -->
-  <script src="./chat.js" defer></script>
 </head>
 
-<body class="index-container bg-gray-100 flex justify-center">
-  <!-- ВАЖНО: используем имя, зарегистрированное через Alpine.data -->
-  <div x-data="chatApp" x-init="init()" class="flex w-full">
+<body class="index-container bg-gray-100 flex justify-center min-h-screen">
+  <!-- ЯВНО: x-data="window.chatApp()" -->
+  <div x-data="window.chatApp()" x-init="init()" class="flex w-full">
 
-    <!-- ЛОГИН (если нет токена) -->
+    <!-- ЛОГИН -->
     <template x-if="!accessToken">
       <div id="login-container" class="mx-auto">
         <h1 class="text-2xl font-semibold mb-4 text-center">Login to Matrix</h1>
@@ -36,7 +38,7 @@
       </div>
     </template>
 
-    <!-- ОСНОВНОЙ ИНТЕРФЕЙС (если есть токен) -->
+    <!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
     <template x-if="accessToken">
       <div class="flex w-full">
         <!-- Rooms -->

@@ -1,7 +1,6 @@
-// Регистрируем компонент через Alpine.data на событие инициализации Alpine.
-// Так Alpine гарантированно "знает" про chatApp до разборки x-data в DOM.
-document.addEventListener('alpine:init', () => {
-  Alpine.data('chatApp', () => ({
+// Делаем компонент доступным глобально И ДО Alpine:
+window.chatApp = function () {
+  return {
     // ===== STATE =====
     username: '',
     password: '',
@@ -28,11 +27,10 @@ document.addEventListener('alpine:init', () => {
     async loadPartials() {
       try {
         const [sb, us] = await Promise.all([
-          fetch('./sidebar.html').then(r => r.ok ? r.text() : ''),
-          fetch('./user.html').then(r => r.ok ? r.text() : '')
+          fetch('./sidebar.html').then(r => (r.ok ? r.text() : '')),
+          fetch('./user.html').then(r => (r.ok ? r.text() : ''))
         ]);
 
-        // Фолбэки, если файлов нет
         this.partials.sidebar = sb || `
           <div class="room-list space-y-1 px-4">
             <ul class="sidebar-list">
@@ -119,7 +117,7 @@ document.addEventListener('alpine:init', () => {
         const res = await fetch('https://matrix-client.matrix.org/_matrix/client/r0/createRoom', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ name: this.newRoomName, visibility: 'private' })
@@ -137,7 +135,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.accessToken) return;
       try {
         const res = await fetch('https://matrix-client.matrix.org/_matrix/client/r0/joined_rooms', {
-          headers: { 'Authorization': `Bearer ${this.accessToken}` }
+          headers: { Authorization: `Bearer ${this.accessToken}` }
         });
         const data = await res.json();
         const ids = data.joined_rooms || [];
@@ -148,7 +146,7 @@ document.addEventListener('alpine:init', () => {
           try {
             const rn = await fetch(
               `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(id)}/state/m.room.name/`,
-              { headers: { 'Authorization': `Bearer ${this.accessToken}` } }
+              { headers: { Authorization: `Bearer ${this.accessToken}` } }
             );
             if (rn.ok) {
               const n = await rn.json();
@@ -183,7 +181,7 @@ document.addEventListener('alpine:init', () => {
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${this.accessToken}`,
+              Authorization: `Bearer ${this.accessToken}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({ user_id: this.inviteUser })
@@ -206,7 +204,7 @@ document.addEventListener('alpine:init', () => {
           `https://matrix-client.matrix.org/_matrix/client/r0/join/${encodeURIComponent(this.joinRoomId)}`,
           {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${this.accessToken}` }
+            headers: { Authorization: `Bearer ${this.accessToken}` }
           }
         );
         if (!res.ok) {
@@ -225,7 +223,7 @@ document.addEventListener('alpine:init', () => {
       try {
         const res = await fetch(
           `https://matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/joined_members`,
-          { headers: { 'Authorization': `Bearer ${this.accessToken}` } }
+          { headers: { Authorization: `Bearer ${this.accessToken}` } }
         );
         const data = await res.json();
         this.roomMembers = Object.entries(data.joined || {}).map(([userId, info]) => ({
@@ -247,8 +245,10 @@ document.addEventListener('alpine:init', () => {
     async fetchMessages() {
       if (!this.accessToken || !this.roomId) return;
       try {
-        const url = `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/messages?dir=b&limit=30`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${this.accessToken}` } });
+        const url = `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(
+          this.roomId
+        )}/messages?dir=b&limit=30`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
         const data = await res.json();
 
         const msgs = (data.chunk || [])
@@ -271,11 +271,13 @@ document.addEventListener('alpine:init', () => {
       if (!this.accessToken || !this.roomId || !this.newMessage.trim()) return;
       try {
         const txnId = Date.now();
-        const url = `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(this.roomId)}/send/m.room.message/${txnId}`;
+        const url = `https://matrix-client.matrix.org/_matrix/client/r0/rooms/${encodeURIComponent(
+          this.roomId
+        )}/send/m.room.message/${txnId}`;
         const res = await fetch(url, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ msgtype: 'm.text', body: this.newMessage.trim() })
@@ -290,5 +292,5 @@ document.addEventListener('alpine:init', () => {
         console.error('sendMessage error', e);
       }
     }
-  }));
-});
+  };
+};
