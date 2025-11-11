@@ -8,13 +8,12 @@
 
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-  <link rel="stylesheet" href="./index.css">
-  <link rel="stylesheet" href="./login.css">
-  <link rel="stylesheet" href="./sidebar.css">
+  <script type="module">
+    import './chat.js';
+    import './login.js';
+    import './sidebar.js';
+  </script>
 
-  <script defer src="./login.js"></script>
-  <script defer src="./sidebar.js"></script>
-  <script defer src="./chat.js"></script>
 </head>
 <body class="index-container bg-gray-100 flex justify-center">
   <div x-data="chatApp()" x-init="init()" class="flex w-full max-w-full h-full">
